@@ -10,6 +10,9 @@ export default defineConfig([
   {
     files: ["**/*.{ts,tsx}"],
     ignores: [".config/**"],
+    rules: {
+      "react-refresh/only-export-components": "off",
+    },
     extends: [
       js.configs.recommended,
       tseslint.configs.recommended,
