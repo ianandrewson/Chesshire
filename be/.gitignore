@@ -1,0 +1,35 @@
+# Python bytecode and tool caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Secrets: ignore real env files, but track the template
+.env
+.env.*
+!.env.example
+
+# Local databases and dumps
+*.db
+*.sqlite3
+*.dump
+
+# Cached chess.com API responses or raw exports, if you store any
+cache/
+data/raw/
+
+# Logs
+*.log
+
+# Editors and OS files
+.idea/
+.vscode/
+.DS_Store
