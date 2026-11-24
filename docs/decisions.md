@@ -35,13 +35,14 @@ This is the project's memory for _why_ things are the way they are. Read it befo
 | D-007 | Use `relationship` selectively                                            | Accepted |
 | D-008 | Idempotent ingestion keyed on chess.com game identifier                   | Accepted |
 | D-009 | Keep raw PGN and raw API payload                                          | Accepted |
-| D-010 | Opening data: store ECO and name, derive family later                     | Accepted |
+| D-010 | Opening data: store ECO and name, derive family later                     | Superseded by D-017 |
 | D-011 | Global chess accounts linked to users via a join table                    | Accepted |
 | D-012 | Multi-user schema now, login later                                        | Accepted |
 | D-013 | Engine analysis: own tables, positional "same mistake", background worker | Planned  |
 | D-014 | How to derive `opening_family`                                            | Open     |
 | D-015 | Hosting platform (needs a Stockfish worker)                               | Open     |
 | D-016 | Frontend stack                                                            | Accepted |
+| D-017 | Opening data: store only `eco` for now                                    | Accepted |
 
 ## Log
 
@@ -112,7 +113,7 @@ This is the project's memory for _why_ things are the way they are. Read it befo
 ### D-010 Opening data: store ECO and name, derive family later
 
 - **Date:** 2026-11-23
-- **Status:** Accepted
+- **Status:** Superseded by D-017
 - **Decision:** Extract `eco` and the opening name from PGN headers at ingestion (verify header fields against real data) and store them on `games`. `opening_family` is a nullable derived column, recomputable from stored PGN/raw data. See D-014 for how to derive it.
 - **Why:** Chess.com's opening names are very specific; grouping by raw name creates many tiny buckets, so a coarser family is needed for meaningful stats. Because source data is stored (D-009), the rule can change without re-ingesting.
 
@@ -145,6 +146,7 @@ This is the project's memory for _why_ things are the way they are. Read it befo
 - **Date:** 2026-11-23
 - **Status:** Open
 - **Context:** Options: ECO code ranges, parsing the opening name, or an open openings dataset (e.g. lichess's `chess-openings`; confirm current format and license first). Decide after looking at real ingested data and how many games land in each bucket.
+- **Update (2026-11-24):** Deferred; D-017 drops `opening_family` from the schema for now. This stays Open until a family is actually needed.
 
 ### D-015 Hosting platform
 
@@ -158,3 +160,11 @@ This is the project's memory for _why_ things are the way they are. Read it befo
 - **Status:** Accepted
 - **Decision:** React with Vite; MUI for components, with Emotion for styled components; TanStack Router for routing and TanStack Query for server state; yarn as the package manager. Lives in `fe/`.
 - **Why:** Owner's choice. Frontend env variables (anything `VITE_`-prefixed) are bundled into the public JavaScript, so they must never hold secrets; the backend URL is fine.
+
+### D-017 Opening data: store only `eco` for now
+
+- **Date:** 2026-11-24
+- **Status:** Accepted
+- **Context:** D-010 planned to store `eco`, the opening name, and a derived `opening_family` on `games`. The name and family aren't needed yet.
+- **Decision:** `games` stores only `eco`. No opening name or `opening_family` columns for now; opening aggregates group by `eco`. The raw PGN and API payload (D-009) are kept, so the name can be extracted later and `opening_family` added with a migration and backfill. D-014 (how to derive the family) stays Open.
+- **Why:** ECO is enough for the MVP aggregates, and dropping the two columns avoids deciding the family rule (D-014) before there is real data to look at.
