@@ -4,7 +4,8 @@ class Settings(BaseSettings):
   model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
   database_url: str
-  enviornment: str = "dev"
+  environment: str = "dev"
+  max_primary_accounts: int = 3
 
 
 settings = Settings() # type: ignore
