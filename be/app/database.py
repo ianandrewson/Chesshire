@@ -5,6 +5,7 @@ from sqlalchemy.orm import sessionmaker, DeclarativeBase, Session
 
 from app.config import settings
 
+# TODO: remove echo=True, implement better logging
 engine = create_engine(settings.database_url, pool_pre_ping=True, echo=True)
 
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
