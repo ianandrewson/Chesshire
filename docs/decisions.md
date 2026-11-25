@@ -44,6 +44,10 @@ This is the project's memory for _why_ things are the way they are. Read it befo
 | D-016 | Frontend stack                                                            | Accepted |
 | D-017 | Opening data: store only `eco` for now                                    | Accepted |
 | D-018 | Game players keyed by chess.com player UUID, no account foreign key       | Accepted |
+| D-019 | Primary and followed accounts via `is_primary` on the user-account link   | Accepted |
+| D-020 | Account groups                                                            | Planned  |
+| D-021 | Account sync runs as a background job                                     | Accepted |
+| D-022 | Background job mechanism and how the frontend learns a sync finished      | Open     |
 
 ## Log
 
@@ -180,3 +184,30 @@ This is the project's memory for _why_ things are the way they are. Read it befo
 - **Decision:** Kept from D-006: table `game_players`, one row per color per game, unique on `(game_uuid, color)`, with username, rating and result. Changed: `game_players.player_uuid` (chess.com's player UUID, not null, indexed) is stored for both players, with no foreign key, and `account_id` is dropped. `game_uuid` is a foreign key to `games.chess_uuid`. `chess_accounts` gets a unique, nullable `player_uuid`. "My games" is a join on `game_players.player_uuid = chess_accounts.player_uuid`. The chess.com profile endpoint probably doesn't return the UUID (verify), so a newly added account has a null `player_uuid` until its first games are ingested; ingestion matches the player by lowercased username and saves the UUID.
 - **Why / alternatives rejected:** A foreign key can't reference opponents, who aren't in `chess_accounts`, and `account_id` would be a second copy of what `player_uuid` already says. Joining on the shared UUID also links old games automatically when an account is added later, where `account_id` would need a backfill. Usernames can change; the UUID doesn't.
 - **Naming:** `chess_uuid` and `player_uuid` are always chess.com's identifiers (game and player); `id` and `*_id` are our own row keys. `game_uuid` is a foreign key to `games.chess_uuid`.
+
+### D-019 Primary and followed accounts via `is_primary` on the user-account link
+
+- **Date:** 2026-11-25
+- **Status:** Accepted
+- **Context:** A user tracks their own chess.com accounts and may also follow others (a friend, a GM) for analysis. Ownership can't be verified (D-012), and loading everything a user follows at login could be very large.
+- **Decision:** `user_chess_accounts` gets a boolean `is_primary` (default false). When adding an account, the user can mark it as theirs; that sets `is_primary`, and the same flag can be toggled later on the existing row. There is one link row per user per account. The `chess_accounts` row is shared (D-011): adding a username another user already added reuses that row and creates a new link row. Primary is only a claim and unlocks nothing. On load, the app fetches only the user's primary accounts; followed accounts are fetched on demand. A user with no primary account gets an empty state the frontend recognizes and answers with a designation wizard. Soft limit of 3 primary accounts, a setting in `config.py` (`MAX_PRIMARY_ACCOUNTS`) enforced in the service layer, not the database. No limit on follows is decided yet.
+- **Why / alternatives rejected:** A boolean covers the two states needed; an enum can come later if more appear. The cap guards against abuse and keeps the default load small. Loading follows lazily answers the size concern without groups (D-020).
+
+### D-020 Account groups
+
+- **Date:** 2026-11-25
+- **Status:** Planned
+- **Decision:** Users will later be able to sort followed accounts into named groups and view combined stats. Out of the MVP (D-001). Design notes and open questions are in [`PLANNED.md`](PLANNED.md).
+
+### D-021 Account sync runs as a background job
+
+- **Date:** 2026-11-25
+- **Status:** Accepted
+- **Context:** Ingesting an account's history takes many requests to chess.com (one archive per month) and can be slow.
+- **Decision:** Syncing runs as a background job, not inside a request. When a user submits their primary accounts, the API saves the account rows and returns; the frontend then makes a follow-up request to get the data for those accounts. Ingestion stays idempotent (D-008). The sync mechanism is D-022.
+
+### D-022 Background job mechanism and sync completion signal
+
+- **Date:** 2026-11-25
+- **Status:** Open
+- **Context:** D-021 needs something to run the job, and the frontend needs a way to tell "sync not finished" from "no games". `last_synced_at` alone can't say that; a sync status on `chess_accounts` (never, queued, running, done, failed) probably can. Related: whether the frontend's follow-up request or the submit request itself should start the job. Related to D-013 and D-015.

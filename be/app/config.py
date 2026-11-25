@@ -5,6 +5,7 @@ class Settings(BaseSettings):
 
   database_url: str
   environment: str = "dev"
+  max_primary_accounts: int = 3
 
 
 settings = Settings() # type: ignore
