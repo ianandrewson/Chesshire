@@ -63,3 +63,4 @@ Rules:
 - Games are unique on chess.com's game identifier; ingestion must be idempotent (re-syncing never duplicates).
 - Keep the raw PGN and raw API payload on `games` so fields can be backfilled without re-fetching.
 - Analysis results (engine evaluations) go in their own tables, not columns on `games`.
+- Naming: `chess_uuid` and `player_uuid` are chess.com's identifiers for a game and a player; `id` and `*_id` are our own row keys. `game_players` links to games through `game_uuid` and to tracked accounts through `player_uuid` (no foreign key; see D-018).

@@ -1,7 +1,8 @@
 import uuid
+from datetime import datetime
 
 from typing import Any
-from sqlalchemy import String, DateTime, Boolean, Text
+from sqlalchemy import String, DateTime, Boolean, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -17,7 +18,7 @@ class Game(Base):
   chess_url: Mapped[str] = mapped_column(String)
   eco: Mapped[str | None] = mapped_column(String)
   raw: Mapped[dict[str, Any]] = mapped_column(JSONB)
-  end_time: Mapped[DateTime] = mapped_column(DateTime(timezone=True))
+  end_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
   rules: Mapped[str] = mapped_column(String)
   rated: Mapped[bool] = mapped_column(Boolean)
-  created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True))
+  created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

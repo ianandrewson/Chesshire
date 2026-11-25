@@ -31,7 +31,7 @@ This is the project's memory for _why_ things are the way they are. Read it befo
 | D-003 | Config via pydantic-settings and env vars                                 | Accepted |
 | D-004 | Sync SQLAlchemy 2.0 with psycopg 3                                        | Accepted |
 | D-005 | Backend folder layout                                                     | Accepted |
-| D-006 | Game players in a child table                                             | Accepted |
+| D-006 | Game players in a child table                                             | Superseded by D-018 |
 | D-007 | Use `relationship` selectively                                            | Accepted |
 | D-008 | Idempotent ingestion keyed on chess.com game identifier                   | Accepted |
 | D-009 | Keep raw PGN and raw API payload                                          | Accepted |
@@ -43,6 +43,7 @@ This is the project's memory for _why_ things are the way they are. Read it befo
 | D-015 | Hosting platform (needs a Stockfish worker)                               | Open     |
 | D-016 | Frontend stack                                                            | Accepted |
 | D-017 | Opening data: store only `eco` for now                                    | Accepted |
+| D-018 | Game players keyed by chess.com player UUID, no account foreign key       | Accepted |
 
 ## Log
 
@@ -85,7 +86,7 @@ This is the project's memory for _why_ things are the way they are. Read it befo
 ### D-006 Game players in a child table
 
 - **Date:** 2026-11-23
-- **Status:** Accepted
+- **Status:** Superseded by D-018
 - **Context:** Each game has a white and a black player with the same shape.
 - **Decision:** Table `game_players`, one row per color per game, unique on `(game_id, color)`, with username, rating, result, and a nullable `account_id` (set only when the player is a tracked chess.com account). The API may still expose nested `white` / `black` objects.
 - **Why:** Aggregates dominate, and nearly every insight is from one account's side of the game. With one row per side, "my rating/result" is a column and the opponent is the other row, instead of a `CASE WHEN white_username = ...` in every query. Flat columns and JSONB were rejected for that reason.
@@ -102,6 +103,7 @@ This is the project's memory for _why_ things are the way they are. Read it befo
 - **Date:** 2026-11-23
 - **Status:** Accepted
 - **Decision:** Unique constraint on chess.com's game identifier (verify the exact field, likely a `uuid`, against a real API response). Re-syncing never creates duplicates. A game can appear in two accounts' archives (two tracked accounts played each other), so dedupe on that identifier.
+- **Update (2026-11-24):** Verified against a real response: the identifier is the game's `uuid`, stored as `games.chess_uuid` (primary key).
 
 ### D-009 Keep raw PGN and raw API payload
 
@@ -124,6 +126,7 @@ This is the project's memory for _why_ things are the way they are. Read it befo
 - **Context:** Users may have several chess.com accounts, and ownership can't be verified through the public API, so two app users can add the same username.
 - **Decision:** `chess_accounts` is global: one row per chess.com username (unique), holding per-account data such as last-synced time. `user_chess_accounts (user_id, chess_account_id)` links users to accounts (composite primary key, foreign keys on both columns). Games are ingested once per username.
 - **Why / alternatives rejected:** `user_id` on `chess_accounts` collides with the unique game identifier (D-008) and with `game_players.account_id` when two users add the same username. A list/array of accounts on `users` can't be referenced by foreign keys and has nowhere to hold per-account data.
+- **Update (2026-11-24):** `game_players.account_id`, mentioned above, no longer exists (see D-018). `chess_accounts` instead gets its own unique, nullable `player_uuid` (chess.com's player UUID), which is how games are matched to tracked accounts.
 
 ### D-012 Multi-user schema now, login later
 
@@ -168,3 +171,12 @@ This is the project's memory for _why_ things are the way they are. Read it befo
 - **Context:** D-010 planned to store `eco`, the opening name, and a derived `opening_family` on `games`. The name and family aren't needed yet.
 - **Decision:** `games` stores only `eco`. No opening name or `opening_family` columns for now; opening aggregates group by `eco`. The raw PGN and API payload (D-009) are kept, so the name can be extracted later and `opening_family` added with a migration and backfill. D-014 (how to derive the family) stays Open.
 - **Why:** ECO is enough for the MVP aggregates, and dropping the two columns avoids deciding the family rule (D-014) before there is real data to look at.
+
+### D-018 Game players keyed by chess.com player UUID, no account foreign key
+
+- **Date:** 2026-11-24
+- **Status:** Accepted
+- **Context:** D-006 gave `game_players` a nullable `account_id` foreign key to `chess_accounts`, set only for tracked accounts. Every row already carries chess.com's player UUID, which makes that column a duplicate.
+- **Decision:** Kept from D-006: table `game_players`, one row per color per game, unique on `(game_uuid, color)`, with username, rating and result. Changed: `game_players.player_uuid` (chess.com's player UUID, not null, indexed) is stored for both players, with no foreign key, and `account_id` is dropped. `game_uuid` is a foreign key to `games.chess_uuid`. `chess_accounts` gets a unique, nullable `player_uuid`. "My games" is a join on `game_players.player_uuid = chess_accounts.player_uuid`. The chess.com profile endpoint probably doesn't return the UUID (verify), so a newly added account has a null `player_uuid` until its first games are ingested; ingestion matches the player by lowercased username and saves the UUID.
+- **Why / alternatives rejected:** A foreign key can't reference opponents, who aren't in `chess_accounts`, and `account_id` would be a second copy of what `player_uuid` already says. Joining on the shared UUID also links old games automatically when an account is added later, where `account_id` would need a backfill. Usernames can change; the UUID doesn't.
+- **Naming:** `chess_uuid` and `player_uuid` are always chess.com's identifiers (game and player); `id` and `*_id` are our own row keys. `game_uuid` is a foreign key to `games.chess_uuid`.
